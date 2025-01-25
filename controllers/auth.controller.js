@@ -1,14 +1,10 @@
 import { User } from "../models/User.js";
 import bcryptjs from "bcryptjs";
-import { generateTokenAndSetCookie } from "../utils/generateTokenAndSetCookie.js";
+import { generateToken } from "../utils/generateToken.js";
 
 export const register = async (req, res) => {
-  console.log(req.body);
-
   const { first_name, last_name, email, password, role, phone_number } =
     req.body;
-
-  console.log("req.body");
 
   try {
     if (
@@ -22,7 +18,7 @@ export const register = async (req, res) => {
       throw new Error("All fiends are required");
     }
 
-    const userAlreadyExist = User.findOne({ email });
+    const userAlreadyExist = await User.findOne({ email });
 
     if (userAlreadyExist) {
       return res.status(400).json({
@@ -31,7 +27,7 @@ export const register = async (req, res) => {
       });
     }
 
-    const hashedPassword = bcryptjs.hash(password, 10);
+    const hashedPassword = await bcryptjs.hash(password, 10);
 
     const verificationToken = Math.floor(
       100000 + Math.random() * 900000
@@ -48,8 +44,6 @@ export const register = async (req, res) => {
       verificationTokenExpiresAt: Date.now() + 24 * 60 * 60 * 1000, //expires after 24 hours
     });
 
-    generateTokenAndSetCookie(res, user._id);
-
     res.status(201).json({
       message: "User created successfully",
       success: true,
@@ -63,9 +57,72 @@ export const register = async (req, res) => {
 };
 
 export const login = async (req, res) => {
-  res.send("login");
+  const { email, password } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "User not found with this email",
+      });
+    }
+
+    const isPasswordValid = await bcryptjs.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid password",
+      });
+    }
+
+    generateToken(res, user._id);
+    user.lastLogin = Date.now();
+    await user.save();
+
+    res.status(200).json({
+      message: "Login successfully",
+      success: true,
+      user: {
+        userRole: user.role,
+      },
+    });
+  } catch (error) {
+    console.log("error", error);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 export const logout = async (req, res) => {
-  res.send("logout");
+  res.clearCookie("authToken");
+  res.status(200).json({
+    message: "Logout successfully",
+  });
+};
+
+export const checkAuth = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select("-password");
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
