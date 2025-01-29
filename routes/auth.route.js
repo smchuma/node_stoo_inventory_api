@@ -9,8 +9,8 @@ import { verifyAuth } from "../middleware/verifyAuth.js";
 
 const router = express.Router();
 
-router.get("/user", verifyAuth, checkAuth);
-
+// autnetication routes
+router.get("/check_auth", verifyAuth, checkAuth);
 router.post("/register", register);
 router.post("/login", login);
 router.post("/logout", logout);
